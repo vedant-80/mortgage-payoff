@@ -1,0 +1,10 @@
+{
+  "rules": [
+    "All money is integer cents. Months are 1-based from start_month.",
+    "Monthly rate is annual_rate_bps / 120000. Round monthly interest to nearest cent, ties up.",
+    "Scheduled payment is the exact amortizing payment rounded UP to a whole cent; zero-rate payment is ceil(principal/term).",
+    "Each month: accrue interest, pay min(scheduled_payment, balance plus interest), then apply the extra principal capped at remaining balance. In the final contractual month, the regular payment instead settles the entire balance plus interest, including any cent-rounding residue.",
+    "No fees, escrow, penalties, or refinancing. Stop at payoff. Ignore extra payments dated after payoff.",
+    "Compare against the same loan without any extra payments. Report both schedules, payoff months, interest totals and their difference."
+  ]
+}

@@ -1,0 +1,33 @@
+_ > nanoagent.plugin.v0001.ManifestConfig:
+id: mortgage-payoff
+name: Mortgage Payoff Simulator
+version: 0.1.0
+status: ready
+spec: nanoagent.plugin/v0001
+
+runtime > nanoagent.plugin.v0001.RuntimeConfig:
+  type: mcp_stdio
+  command: [uv, run, --frozen, python, -m, plugin]
+
+permissions > nanoagent.plugin.v0001.PermissionsConfig:
+  network > nanoagent.plugin.v0001.NetworkConfig:
+    hosts: []
+  filesystem > nanoagent.plugin.v0001.FilesystemConfig:
+    write: []
+
+tools > dict[contract.Tool, nanoagent.plugin.v0001.ToolConfig]:
+  get_mortgage:
+    description: Retrieve principal, fixed interest rate, term and first payment month for a scenario
+  get_extra_payments:
+    description: Retrieve extra principal payments within an inclusive month range
+  get_rules:
+    description: Retrieve payment timing, rounding and baseline comparison rules
+
+tasks > dict[contract.Task, nanoagent.plugin.v0001.TaskConfig]:
+  simulate-payoff:
+    description: Mortgage Payoff Simulator
+    runner: agent
+    tools: [get_mortgage, get_extra_payments, get_rules]
+    reference: null
+    instructions: |-
+      Retrieve the mortgage, all extra payments, and rules. Calculate the baseline and accelerated amortization schedules. Submit every row and all summary fields declared in PayoffOutput. Use integer cents and the precise rules from get_rules; extra_payment_cents is the actual capped amount applied.
