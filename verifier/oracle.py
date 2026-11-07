@@ -1,5 +1,5 @@
 """Independent integer/rational amortization oracle; never imports the example solver."""
-from plugin.data import scenario
+from .fixtures import scenario
 
 def validate_arguments(args):
     if type(args) is not dict or set(args) != {'scenario_id'}:
