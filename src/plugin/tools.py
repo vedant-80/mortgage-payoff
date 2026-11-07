@@ -1,24 +1,11 @@
-"""Read-only scenario tools. None calculates the task's final answer."""
-import json
-from importlib.resources import files
-from .data import scenario, field
+"""The task's one deterministic calculation tool."""
 
-def get_rules(value, workspace):
-    """Retrieve the precise fictional financial rules and rounding conventions."""
-    return json.loads(files('plugin').joinpath('data/rules.json').read_text())
+from .calculations import solve
 
 
-def get_mortgage(value, workspace):
-    """Retrieve fixed loan terms for a bundled scenario."""
-    return scenario(field(value, 'scenario_id'))['loan']
-
-def get_extra_payments(value, workspace):
-    """Retrieve all extra payments in an inclusive 1-based month range."""
-    item = scenario(field(value, 'scenario_id'))
-    start, end = field(value, 'start_month'), field(value, 'end_month')
-    if type(start) is not int or type(end) is not int or not 1 <= start <= end <= item['loan']['term_months']:
-        raise ValueError('Invalid month range')
-    return {'payments': [p for p in item['extra_payments'] if start <= p['month'] <= end]}
+def calculate_mortgage_payoff(value, workspace):
+    """Calculate the complete result in Python; returns only a compact summary and assumptions."""
+    return solve(value)
 
 
-IMPLEMENTATIONS = {'get_mortgage': get_mortgage, 'get_extra_payments': get_extra_payments, 'get_rules': get_rules}
+IMPLEMENTATIONS = {"calculate_mortgage_payoff": calculate_mortgage_payoff}

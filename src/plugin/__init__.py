@@ -1,1 +1,1 @@
-"""Offline finance scenario tools."""
+"""Deterministic custom-input financial calculator."""

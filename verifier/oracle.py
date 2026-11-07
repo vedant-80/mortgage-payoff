@@ -1,49 +1,82 @@
-"""Independent integer/rational amortization oracle; never imports the example solver."""
-from .fixtures import scenario
+"""Independent Decimal replay of the declared financial model."""
 
-def validate_arguments(args):
-    if type(args) is not dict or set(args) != {'scenario_id'}:
-        raise ValueError('Expected scenario_id')
-    scenario(args['scenario_id'])
+from dataclasses import asdict, is_dataclass
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 
-def expected(args):
-    item = scenario(args['scenario_id'])
-    loan = item['loan']
-    p, n, bps = loan['principal_cents'], loan['term_months'], loan['annual_rate_bps']
-    if bps:
-        power = (120000 + bps) ** n
-        numerator = p * bps * power
-        denominator = 120000 * (power - 120000 ** n)
-    else:
-        numerator, denominator = p, n
-    due = -(-numerator // denominator)
-    extra_by_month = {}
-    for event in item['extra_payments']:
-        extra_by_month[event['month']] = extra_by_month.get(event['month'], 0) + event['amount_cents']
-    schedules = []
-    for accelerated in (True, False):
-        debt, schedule = p, []
-        for m in range(1, n + 1):
-            # Round the exact nonnegative rational half-up.
-            charge = (2 * debt * bps + 120000) // 240000
-            regular = debt + charge if m == n else min(due, debt + charge)
-            additional = min(extra_by_month.get(m, 0) if accelerated else 0, debt + charge - regular)
-            end = debt + charge - regular - additional
-            y, mo = [int(x) for x in loan['start_month'].split('-')]
-            absolute_month = y * 12 + mo - 1 + m - 1
-            date = f'{absolute_month // 12:04d}-{absolute_month % 12 + 1:02d}'
-            schedule.append({'month': m, 'payment_month': date, 'opening_balance_cents': debt,
-                             'interest_cents': charge, 'scheduled_payment_cents': regular,
-                             'extra_payment_cents': additional, 'closing_balance_cents': end})
-            debt = end
-            if debt == 0:
-                break
-        if debt:
-            raise ValueError('Fixture cannot amortize')
-        schedules.append(schedule)
-    accelerated, baseline = schedules
-    interest, baseline_interest = [sum(row['interest_cents'] for row in s) for s in schedules]
-    return {'scenario_id': args['scenario_id'], 'scheduled_payment_cents': due,
-            'payoff_month': accelerated[-1]['payment_month'], 'baseline_payoff_month': baseline[-1]['payment_month'],
-            'total_interest_cents': interest, 'baseline_interest_cents': baseline_interest,
-            'interest_saved_cents': baseline_interest-interest, 'schedule': accelerated, 'baseline_schedule': baseline}
+
+def plain(value):
+    return asdict(value) if is_dataclass(value) else value
+
+
+def integer(value, name, low, high):
+    if type(value) is not int or not low <= value <= high:
+        raise ValueError(f"{name} must be an integer from {low} to {high}")
+    return value
+
+
+def normalize(value):
+    args = plain(value)
+    fields = {"balance_cents", "annual_interest_bps", "monthly_payment_cents", "extra_monthly_payment_cents"}
+    if type(args) is not dict or set(args) != fields:
+        raise ValueError("Supply balance, interest, payment, and extra payment; use null for zero extra")
+    result = {}
+    for key in ("balance_cents", "monthly_payment_cents"):
+        result[key] = integer(args[key], key, 0, 10**15)
+    result["annual_interest_bps"] = integer(args["annual_interest_bps"], "annual_interest_bps", 0, 10000)
+    extra = args["extra_monthly_payment_cents"]
+    defaults = ["extra_monthly_payment_cents"] if extra is None else []
+    result["extra_monthly_payment_cents"] = integer(
+        0 if extra is None else extra, "extra_monthly_payment_cents", 0, 10**15
+    )
+    result["max_payoff_months"] = 1200
+    return result, defaults
+
+
+def expected(value):
+    a, defaults = normalize(value)
+    with localcontext() as context:
+        context.prec = 100
+        outcomes = []
+        for extra in (a["extra_monthly_payment_cents"], 0):
+            balance = Decimal(a["balance_cents"])
+            payment = Decimal(a["monthly_payment_cents"] + extra)
+            rate = Decimal(a["annual_interest_bps"]) / 120000
+            elapsed, interest, paid_total = 0, Decimal(0), Decimal(0)
+            initial_charge = (balance * rate).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+            reason = "non_amortizing" if balance and payment <= initial_charge else "search_limit"
+            if reason != "non_amortizing":
+                while balance > 0 and elapsed < a["max_payoff_months"]:
+                    charge = (balance * rate).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+                    installment = min(payment, balance + charge)
+                    interest += charge
+                    paid_total += installment
+                    balance += charge - installment
+                    elapsed += 1
+            if balance == 0:
+                reason = "paid_off"
+            success = reason == "paid_off"
+            outcomes.append(
+                {
+                    "paid_off": success,
+                    "reason": reason,
+                    "payoff_months": elapsed if success else None,
+                    "payoff_years": elapsed // 12 if success else None,
+                    "payoff_additional_months": elapsed % 12 if success else None,
+                    "months_simulated": elapsed,
+                    "total_interest_cents": int(interest),
+                    "total_paid_cents": int(paid_total),
+                    "remaining_balance_cents": int(balance),
+                }
+            )
+        plan, baseline = outcomes
+        comparable = plan["paid_off"] and baseline["paid_off"]
+        return {
+            "plan": plan,
+            "baseline": baseline,
+            "months_saved": baseline["payoff_months"] - plan["payoff_months"] if comparable else None,
+            "interest_saved_cents": baseline["total_interest_cents"] - plan["total_interest_cents"]
+            if comparable
+            else None,
+            "assumptions": a,
+            "defaults_applied": defaults,
+        }

@@ -1,7 +1,7 @@
 _ > nanoagent.plugin.v0001.ManifestConfig:
 id: mortgage-payoff
-name: Mortgage Payoff Simulator
-version: 0.1.0
+name: Mortgage Payoff Calculator
+version: 0.2.0
 status: ready
 spec: nanoagent.plugin/v0001
 
@@ -16,18 +16,13 @@ permissions > nanoagent.plugin.v0001.PermissionsConfig:
     write: []
 
 tools > dict[contract.Tool, nanoagent.plugin.v0001.ToolConfig]:
-  get_mortgage:
-    description: Retrieve principal, fixed interest rate, term and first payment month for a scenario
-  get_extra_payments:
-    description: Retrieve extra principal payments within an inclusive month range
-  get_rules:
-    description: Retrieve payment timing, rounding and baseline comparison rules
+  calculate_mortgage_payoff:
+    description: Calculate mortgage payoff time and interest under a specified monthly payment plan. Ask for balance, fixed annual interest rate, and monthly principal-and-interest payment if missing. Exclude escrow; pass null for unspecified recurring extra payments (zero). Do not amortize manually.
 
 tasks > dict[contract.Task, nanoagent.plugin.v0001.TaskConfig]:
   simulate-payoff:
-    description: Mortgage Payoff Simulator
-    runner: agent
-    tools: [get_mortgage, get_extra_payments, get_rules]
+    description: Calculate mortgage payoff time and interest under a specified monthly payment plan. Ask for balance, fixed annual interest rate, and monthly principal-and-interest payment if missing. Exclude escrow; pass null for unspecified recurring extra payments (zero). Do not amortize manually.
+    runner: tool
+    tools: [calculate_mortgage_payoff]
     reference: null
-    instructions: |-
-      Retrieve the mortgage, all extra payments, and rules. Calculate the baseline and accelerated amortization schedules. Submit every row and all summary fields declared in PayoffOutput. Use integer cents and the precise rules from get_rules; extra_payment_cents is the actual capped amount applied.
+    instructions: Calculate the entire fixed-rate mortgage payoff in Python. Return compact baseline and extra-payment summaries, capped final payments, and explicit non-amortizing or 1200-month search-limit results. No model loop or full schedules.

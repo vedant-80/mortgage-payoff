@@ -1,10 +1,11 @@
 _ > nanoagent.plugin.v0001.ProductConfig:
-tagline: "Mortgage Payoff Simulator"
-summary: "Solve a reproducible finance scenario using typed data tools and an executable verifier."
+tagline: Mortgage Payoff Calculator
+summary: Calculate mortgage payoff time and interest under a specified monthly payment plan. Ask for balance, fixed annual interest rate, and monthly principal-and-interest payment if missing. Exclude escrow; pass null for unspecified recurring extra payments (zero). Do not amortize manually.
 highlights:
-  - "Bundled scenarios; no live financial data or API keys"
-  - "Explicit rounding and independently verified calculations"
+  - "Your balance, fixed rate, and monthly payments"
+  - "Compare recurring extra payments with the baseline"
+  - "Compact results with independent verification"
 steps:
-  - "Choose a scenario listed in the README"
-  - "Retrieve assumptions using the provided tools"
-  - "Submit the complete structured result"
+  - "Describe your situation using one currency"
+  - "Provide missing essential values and review the defaults"
+  - "Run the calculator and review the verified summary"

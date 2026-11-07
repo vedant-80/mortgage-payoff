@@ -1,75 +1,75 @@
-"""Typed tool and task declarations; money is always integer cents."""
+"""Typed custom financial inputs and compact outputs. No field defaults: null selects documented assumptions."""
+
 from dataclasses import dataclass
 from enum import Enum
+from typing import Annotated
+
 from slimconfig import Output
 
-@dataclass
-class ScenarioInput(Output):
-    scenario_id: str
-
-@dataclass
-class RulesInput(Output):
-    pass
-
-@dataclass
-class RulesOutput(Output):
-    rules: list[str]
 
 class Tool(Enum):
-    GET_MORTGAGE = 'get_mortgage'
-    GET_EXTRA_PAYMENTS = 'get_extra_payments'
-    GET_RULES = 'get_rules'
+    CALCULATE = "calculate_mortgage_payoff"
+
 
 class Task(Enum):
-    SIMULATE_PAYOFF = 'simulate-payoff'
+    CALCULATE = "simulate-payoff"
+
 
 @dataclass
-class MortgageOutput(Output):
-    principal_cents: int
-    annual_rate_bps: int
-    term_months: int
-    start_month: str
+class MortgageInput(Output):
+    balance_cents: Annotated[int, "Current outstanding mortgage balance in integer cents; ask if missing."]
+    annual_interest_bps: Annotated[
+        int, "Fixed nominal annual interest rate in basis points (6% = 600); ask if missing."
+    ]
+    monthly_payment_cents: Annotated[
+        int, "Monthly principal-and-interest payment in cents, excluding escrow and extras; ask if missing."
+    ]
+    extra_monthly_payment_cents: Annotated[
+        int | None, "Recurring extra principal payment in cents each month. Null defaults to zero. No lump sums."
+    ]
+
 
 @dataclass
-class ExtraPaymentsInput(Output):
-    scenario_id: str
-    start_month: int
-    end_month: int
+class MortgageAssumptions(Output):
+    balance_cents: Annotated[int, "Current outstanding mortgage balance in integer cents; ask if missing."]
+    annual_interest_bps: Annotated[
+        int, "Fixed nominal annual interest rate in basis points (6% = 600); ask if missing."
+    ]
+    monthly_payment_cents: Annotated[
+        int, "Monthly principal-and-interest payment in cents, excluding escrow and extras; ask if missing."
+    ]
+    extra_monthly_payment_cents: Annotated[
+        int, "Recurring extra principal payment in cents each month. Null defaults to zero. No lump sums."
+    ]
+    max_payoff_months: Annotated[int, "Fixed 1200-month simulation limit."]
+
 
 @dataclass
-class ExtraPayment(Output):
-    month: int
-    amount_cents: int
+class PayoffSummary(Output):
+    paid_off: Annotated[bool, "Whether the loan is fully repaid within the simulation limit."]
+    reason: Annotated[str, "paid_off, non_amortizing, or search_limit."]
+    payoff_months: Annotated[
+        int | None, "Number of monthly payments to payoff; zero for zero starting balance, null if unpaid."
+    ]
+    payoff_years: Annotated[int | None, "Complete years to payoff, null if unpaid."]
+    payoff_additional_months: Annotated[int | None, "Months beyond complete years, null if unpaid."]
+    months_simulated: Annotated[
+        int, "Months actually simulated. Zero when non-amortization is detected before the first payment."
+    ]
+    total_interest_cents: Annotated[int, "Interest accrued only over months_simulated; not a lifetime total if unpaid."]
+    total_paid_cents: Annotated[int, "Total payments actually applied over months_simulated."]
+    remaining_balance_cents: Annotated[int, "Outstanding balance at the end of the simulation."]
 
-@dataclass
-class ExtraPaymentsOutput(Output):
-    payments: list[ExtraPayment]
-
-@dataclass
-class PaymentRow(Output):
-    month: int
-    payment_month: str
-    opening_balance_cents: int
-    interest_cents: int
-    scheduled_payment_cents: int
-    extra_payment_cents: int
-    closing_balance_cents: int
 
 @dataclass
 class PayoffOutput(Output):
-    scenario_id: str
-    scheduled_payment_cents: int
-    payoff_month: str
-    baseline_payoff_month: str
-    total_interest_cents: int
-    baseline_interest_cents: int
-    interest_saved_cents: int
-    schedule: list[PaymentRow]
-    baseline_schedule: list[PaymentRow]
+    plan: Annotated[PayoffSummary, "Result including recurring extra payments."]
+    baseline: Annotated[PayoffSummary, "Result with only the specified regular payment."]
+    months_saved: Annotated[int | None, "Baseline months minus plan months; null unless both pay off."]
+    interest_saved_cents: Annotated[int | None, "Baseline interest minus plan interest; null unless both pay off."]
+    assumptions: Annotated[MortgageAssumptions, "All effective inputs and fixed simulation limit."]
+    defaults_applied: Annotated[list[str], "Names of nullable input fields that used defaults."]
 
-TOOLS = {
-    Tool.GET_MORTGAGE: (ScenarioInput, MortgageOutput),
-    Tool.GET_EXTRA_PAYMENTS: (ExtraPaymentsInput, ExtraPaymentsOutput),
-    Tool.GET_RULES: (RulesInput, RulesOutput),
-}
-TASKS = {Task.SIMULATE_PAYOFF: (ScenarioInput, PayoffOutput)}
+
+TOOLS = {Tool.CALCULATE: (MortgageInput, PayoffOutput)}
+TASKS = {Task.CALCULATE: (MortgageInput, PayoffOutput)}
